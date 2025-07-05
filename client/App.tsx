@@ -16,6 +16,9 @@ import Test from "./pages/Test";
 import Match from "./pages/Match";
 import Progress from "./pages/Progress";
 import NotFound from "./pages/NotFound";
+import { AuthProvider } from "./lib/auth";
+import RegisterPage from "./pages/Register";
+import LoginPage from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +29,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+    <AuthProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/study" element={<Study />} />
@@ -38,9 +42,13 @@ const App = () => (
             <Route path="/match" element={<Match />} />
             <Route path="/match/:setId" element={<Match />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+      </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

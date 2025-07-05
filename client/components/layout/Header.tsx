@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import MobileNav from "./MobileNav";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
 
 interface HeaderProps {
   searchQuery?: string;
@@ -23,6 +24,7 @@ export default function Header({
   onSearchChange,
 }: HeaderProps) {
   const navigate = useNavigate();
+  const { userId, userName, loading, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -85,7 +87,15 @@ export default function Header({
               <div className="flex flex-col space-y-1 p-2">
                 <p className="text-sm font-medium leading-none">User</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  user@example.com
+                  {/* user@example.com */}
+                  {loading ? (
+                    <span>Checking auth...</span>
+                  ) : (
+                    <>
+                      <span className="text-sm">👋 Hello, {userName}</span>
+                    </>
+
+                  )}
                 </p>
               </div>
               <DropdownMenuSeparator />
@@ -99,7 +109,7 @@ export default function Header({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer text-destructive">
-                <span>Log out</span>
+                <span  onClick={logout}>Log out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

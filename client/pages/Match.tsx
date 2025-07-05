@@ -6,32 +6,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FlashcardSet } from "@/types/flashcard";
-import { getSets, getSet } from "@/lib/storage";
 import { ArrowLeft, Play, Target, Timer, Zap } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function Match() {
   const { setId } = useParams();
   const navigate = useNavigate();
+  const { userId, loading: authLoading } = useAuth();
   const [sets, setSets] = useState<FlashcardSet[]>([]);
   const [selectedSet, setSelectedSet] = useState<FlashcardSet | null>(null);
   const [gameMode, setGameMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [setId]);
-
-  const loadData = () => {
-    const allSets = getSets();
-    setSets(allSets);
-
-    if (setId) {
-      const set = getSet(setId);
-      if (set) {
-        setSelectedSet(set);
-        setGameMode(true);
+    // Đợi auth check xong
+    if (!authLoading) {
+      if (!userId) {
+        navigate("/login");
       } else {
-        navigate("/match");
+        loadData();
       }
+    }
+  }, [authLoading, userId, setId]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/me/flashcard-sets", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch sets");
+      const data: FlashcardSet[] = await res.json();
+      setSets(data);
+
+      if (setId) {
+        const found = data.find((s) => s.id === setId);
+        if (found) {
+          setSelectedSet(found);
+          setGameMode(true);
+        } else {
+          navigate("/match");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -53,6 +73,16 @@ export default function Match() {
     setSelectedSet(null);
     navigate("/match");
   };
+
+  if (authLoading || isLoading) {
+    return (
+      <AppLayout>
+        <div className="container mx-auto p-6">
+          <p>Loading…</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (gameMode && selectedSet) {
     return (

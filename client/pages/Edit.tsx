@@ -11,6 +11,7 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle,
+  Upload,
 } from "lucide-react";
 import { EditSetForm } from "@/components/edit/EditSetForm";
 import { CardEditor } from "@/components/edit/CardEditor";
@@ -18,6 +19,8 @@ import { AddCardForm } from "@/components/edit/AddCardForm";
 import { DeleteConfirmation } from "@/components/edit/DeleteConfirmation";
 import { FlashcardSet, Card as FlashCard } from "@/types/flashcard";
 import { getSet, saveSet } from "@/lib/storage";
+import { fetchSetById, updateSet } from "@/lib/api";
+import BulkImportModal from "@/components/create/BulkImportModal";
 
 const EditPage: React.FC = () => {
   const params = useParams();
@@ -38,12 +41,14 @@ const EditPage: React.FC = () => {
 
   useEffect(() => {
     if (!setId) {
+      console.log("ok1");
+
       navigate("/");
       return;
     }
 
     loadSet();
-  }, [setId, navigate]);
+  }, [setId]);
 
   useEffect(() => {
     // Warn user about unsaved changes when leaving page
@@ -58,21 +63,31 @@ const EditPage: React.FC = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
+  const handleBulkImport = (
+    importedCards: { term: string; definition: string }[],
+  ) => {
+    if (!editedSet) return;
+    const startingOrder = editedSet.cards.length;
+
+    const newCards: FlashCard[] = importedCards.map((card, index) => ({
+      id: `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      term: card.term,
+      definition: card.definition,
+      order: startingOrder + index,
+    }));
+
+    updateEditedSet({ cards: [...editedSet.cards, ...newCards] });
+    toast.success(`${newCards.length} cards imported successfully`);
+  };
+
   const loadSet = async () => {
     setIsLoading(true);
     try {
-      const set = getSet(setId!);
-      if (!set) {
-        toast.error("Study set not found");
-        navigate("/");
-        return;
-      }
-
+      const set = await fetchSetById(setId!);
       setOriginalSet(set);
       setEditedSet({ ...set });
     } catch (error) {
-      console.error("Error loading set:", error);
-      toast.error("Failed to load study set");
+      toast.error("Study set not found or failed to load");
       navigate("/");
     } finally {
       setIsLoading(false);
@@ -81,14 +96,15 @@ const EditPage: React.FC = () => {
 
   const detectChanges = (newSet: FlashcardSet) => {
     if (!originalSet) return false;
-
-    return (
-      JSON.stringify(originalSet) !== JSON.stringify(newSet) ||
-      newSet.title !== originalSet.title ||
-      newSet.description !== originalSet.description ||
-      newSet.cards.length !== originalSet.cards.length ||
-      JSON.stringify(newSet.cards) !== JSON.stringify(originalSet.cards)
-    );
+    const significantFields = ["title", "description", "cards"];
+    for (const field of significantFields) {
+      if (
+        JSON.stringify(originalSet[field]) !== JSON.stringify(newSet[field])
+      ) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const updateEditedSet = (updates: Partial<FlashcardSet>) => {
@@ -135,7 +151,6 @@ const EditPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!editedSet) return;
-
     setIsSaving(true);
     const errors = validateSet(editedSet);
     setValidationErrors(errors);
@@ -151,16 +166,12 @@ const EditPage: React.FC = () => {
         ...editedSet,
         updatedAt: new Date().toISOString(),
       };
-
-      saveSet(setToSave);
+      await updateSet(setId!, setToSave);
       setOriginalSet(setToSave);
       setHasUnsavedChanges(false);
-      toast.success("Study set saved successfully!");
-
-      // Redirect to study set detail or back to home
-      navigate(`/study/${setId}`);
-    } catch (error) {
-      console.error("Error saving set:", error);
+      toast.success("Study set saved successfully");
+      navigate(`/`);
+    } catch (err) {
       toast.error("Failed to save study set");
     } finally {
       setIsSaving(false);
@@ -229,6 +240,7 @@ const EditPage: React.FC = () => {
       );
       if (!confirmLeave) return;
     }
+    console.log("ok4");
     navigate(-1);
   };
 
@@ -249,7 +261,13 @@ const EditPage: React.FC = () => {
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Study Set Not Found</h2>
-          <Button onClick={() => navigate("/")} variant="outline">
+          <Button
+            onClick={() => {
+              console.log("ok1");
+              navigate("/");
+            }}
+            variant="outline"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
@@ -393,6 +411,22 @@ const EditPage: React.FC = () => {
                         }}
                       />
                     ))}
+                    <Card className="border-dashed">
+                      <CardContent className="p-6">
+                        <Button
+                          onClick={() => setShowAddCard(true)}
+                          variant="ghost"
+                          className="w-full h-20 border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5"
+                        >
+                          <div className="text-center">
+                            <Plus className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                            <div className="text-sm text-muted-foreground">
+                              Add another card
+                            </div>
+                          </div>
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </CardContent>
@@ -433,6 +467,25 @@ const EditPage: React.FC = () => {
                     <span className="text-sm">No validation errors</span>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Import Cards
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BulkImportModal onImport={handleBulkImport}>
+                  <Button variant="outline" className="gap-2 w-full">
+                    <Upload className="h-4 w-4" />
+                    Import from text
+                  </Button>
+                </BulkImportModal>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Paste or upload text to import multiple cards
+                </p>
               </CardContent>
             </Card>
 

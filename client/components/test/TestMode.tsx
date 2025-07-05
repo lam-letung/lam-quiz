@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { FlashcardSet, Card, Question, QuestionType } from "@/types/flashcard";
+import React, { useEffect, useState } from "react";
+import { FlashcardSet, Question, QuestionType } from "@/types/flashcard";
 import {
   Card as UICard,
   CardContent,
@@ -7,47 +7,41 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Clock,
+  Trophy,
   CheckCircle,
   XCircle,
-  Trophy,
   RotateCcw,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface TestModeProps {
   flashcardSet: FlashcardSet;
-  onComplete?: (score: number, results: Question[]) => void;
   onExit?: () => void;
+  onBackToList?: () => void;
 }
 
 interface TestConfig {
   questionCount: number;
   questionTypes: QuestionType[];
-  timeLimit?: number; // in minutes
+  timeLimit?: number; // phút
   randomize: boolean;
 }
 
 export default function TestMode({
   flashcardSet,
-  onComplete,
   onExit,
+  onBackToList,
 }: TestModeProps) {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [testStarted, setTestStarted] = useState(false);
-  const [testCompleted, setTestCompleted] = useState(false);
-  const [startTime, setStartTime] = useState<number>(0);
-  const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [config, setConfig] = useState<TestConfig>({
     questionCount: Math.min(10, flashcardSet.cards.length),
     questionTypes: ["multiple-choice", "true-false"],
@@ -55,322 +49,277 @@ export default function TestMode({
     randomize: true,
   });
 
-  useEffect(() => {
-    if (testStarted && config.timeLimit) {
-      const timer = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000 / 60; // minutes
-        const remaining = config.timeLimit! - elapsed;
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [started, setStarted] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [startTime, setStartTime] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
 
-        if (remaining <= 0) {
-          finishTest();
+  // Khởi động đồng hồ nếu có giới hạn thời gian
+  useEffect(() => {
+    if (started && config.timeLimit) {
+      const timer = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000 / 60;
+        const rem = config.timeLimit! - elapsed;
+        if (rem <= 0) {
+          finish();
         } else {
-          setTimeRemaining(remaining);
+          setTimeLeft(rem);
         }
       }, 1000);
-
       return () => clearInterval(timer);
     }
-  }, [testStarted, startTime, config.timeLimit]);
+  }, [started, startTime, config.timeLimit]);
 
-  const generateQuestions = () => {
-    const selectedCards = config.randomize
-      ? [...flashcardSet.cards].sort(() => Math.random() - 0.5)
-      : flashcardSet.cards;
-
-    const cardsToUse = selectedCards.slice(0, config.questionCount);
-    const generatedQuestions: Question[] = [];
-
-    cardsToUse.forEach((card, index) => {
-      const questionType =
-        config.questionTypes[
-          Math.floor(Math.random() * config.questionTypes.length)
-        ];
-
-      const question = createQuestion(card, questionType, index);
-      generatedQuestions.push(question);
-    });
-
-    setQuestions(generatedQuestions);
-  };
-
-  const createQuestion = (
-    card: Card,
+  // Tạo câu hỏi
+  function createQuestion(
+    card: (typeof flashcardSet.cards)[0],
     type: QuestionType,
-    index: number,
-  ): Question => {
-    const question: Question = {
-      id: `q-${index}`,
+    idx: number,
+  ): Question {
+    const q: Question = {
+      id: `q-${idx}`,
       cardId: card.id,
       type,
       question: "",
       correctAnswer: "",
       options: [],
     };
-
     switch (type) {
       case "multiple-choice":
-        question.question = `What is the definition of "${card.term}"?`;
-        question.correctAnswer = card.definition;
-
-        // Generate wrong answers from other cards
-        const otherCards = flashcardSet.cards
+        q.question = `Định nghĩa của "${card.term}" là?`;
+        q.correctAnswer = card.definition;
+        const others = flashcardSet.cards
           .filter((c) => c.id !== card.id)
           .sort(() => Math.random() - 0.5)
           .slice(0, 3);
-
-        question.options = [
-          card.definition,
-          ...otherCards.map((c) => c.definition),
-        ].sort(() => Math.random() - 0.5);
+        q.options = [card.definition, ...others.map((c) => c.definition)].sort(
+          () => Math.random() - 0.5,
+        );
         break;
-
       case "true-false":
-        const isCorrect = Math.random() > 0.5;
-        if (isCorrect) {
-          question.question = `True or False: "${card.term}" means "${card.definition}"`;
-          question.correctAnswer = "True";
+        const isTrue = Math.random() > 0.5;
+        if (isTrue) {
+          q.question = `Đúng hay sai: "${card.term}" nghĩa là "${card.definition}"`;
+          q.correctAnswer = "True";
         } else {
-          const wrongDefinition =
+          const wrong =
             flashcardSet.cards
               .filter((c) => c.id !== card.id)
-              .sort(() => Math.random() - 0.5)[0]?.definition ||
-            "Wrong definition";
-          question.question = `True or False: "${card.term}" means "${wrongDefinition}"`;
-          question.correctAnswer = "False";
+              .sort(() => Math.random() - 0.5)[0]?.definition || "Sai";
+          q.question = `Đúng hay sai: "${card.term}" nghĩa là "${wrong}"`;
+          q.correctAnswer = "False";
         }
-        question.options = ["True", "False"];
+        q.options = ["True", "False"];
         break;
-
       case "written":
-        question.question = `What does "${card.term}" mean?`;
-        question.correctAnswer = card.definition;
+        q.question = `Viết định nghĩa của "${card.term}"`;
+        q.correctAnswer = card.definition;
         break;
-
       case "fill-blank":
         const words = card.definition.split(" ");
-        const blankIndex = Math.floor(Math.random() * words.length);
-        const blankWord = words[blankIndex];
-        words[blankIndex] = "_____";
-        question.question = `Fill in the blank: "${card.term}" means "${words.join(" ")}"`;
-        question.correctAnswer = blankWord;
+        const bidx = Math.floor(Math.random() * words.length);
+        const blank = words[bidx];
+        words[bidx] = "_____";
+        q.question = `Điền chỗ trống: "${card.term}" nghĩa là "${words.join(
+          " ",
+        )}"`;
+        q.correctAnswer = blank;
         break;
     }
+    return q;
+  }
 
-    return question;
+  // Sinh danh sách câu hỏi
+  const generate = () => {
+    let pool = config.randomize
+      ? [...flashcardSet.cards].sort(() => Math.random() - 0.5)
+      : flashcardSet.cards;
+    pool = pool.slice(0, config.questionCount);
+    setQuestions(
+      pool.map((c, i) =>
+        createQuestion(
+          c,
+          config.questionTypes[
+            Math.floor(Math.random() * config.questionTypes.length)
+          ],
+          i,
+        ),
+      ),
+    );
   };
 
-  const startTest = () => {
-    generateQuestions();
-    setTestStarted(true);
+  // Bắt đầu bài test
+  const start = () => {
+    generate();
+    setStarted(true);
     setStartTime(Date.now());
-    if (config.timeLimit) {
-      setTimeRemaining(config.timeLimit);
+    if (config.timeLimit) setTimeLeft(config.timeLimit);
+  };
+
+  // Lưu đáp án
+  const record = (qid: string, val: string) => {
+    setAnswers((a) => ({ ...a, [qid]: val }));
+  };
+
+  // Kiểm tra đáp án
+  const check = (q: Question, ans: string) => {
+    if (!ans) return false;
+    if (q.type === "multiple-choice" || q.type === "true-false") {
+      return ans === q.correctAnswer;
     }
+    const u = ans.toLowerCase().trim();
+    const c = q.correctAnswer.toLowerCase().trim();
+    return u === c || u.includes(c) || c.includes(u);
   };
 
-  const handleAnswer = (questionId: string, answer: string) => {
-    setAnswers({ ...answers, [questionId]: answer });
-  };
-
-  const nextQuestion = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      finishTest();
+  // Chuyển câu kế tiếp
+  const next = () => {
+    const q = questions[current];
+    const ans = answers[q.id] || "";
+    if (!ans.trim()) {
+      toast.error("Bạn chưa chọn/nhập câu trả lời!");
+      return;
     }
+    // đánh dấu highlight ngay:
+    setQuestions((qs) =>
+      qs.map((x) =>
+        x.id === q.id ? { ...x, userAnswer: ans, isCorrect: check(x, ans) } : x,
+      ),
+    );
+    if (current < questions.length - 1) {
+      setCurrent(current + 1);
+    } else finish();
   };
 
-  const previousQuestion = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
-    }
+  // Quay lại
+  const prev = () => {
+    if (current > 0) setCurrent(current - 1);
   };
 
-  const finishTest = () => {
-    const updatedQuestions = questions.map((q) => ({
+  // Kết thúc và hiện màn tổng kết
+  const finish = () => {
+    // đánh dấu tất cả
+    const scored = questions.map((q) => ({
       ...q,
       userAnswer: answers[q.id] || "",
-      isCorrect: checkAnswer(q, answers[q.id] || ""),
+      isCorrect: check(q, answers[q.id] || ""),
     }));
-
-    setQuestions(updatedQuestions);
-    setTestCompleted(true);
-
-    const score = Math.round(
-      (updatedQuestions.filter((q) => q.isCorrect).length /
-        updatedQuestions.length) *
-        100,
-    );
-
-    onComplete?.(score, updatedQuestions);
+    setQuestions(scored);
+    setCompleted(true);
+    const right = scored.filter((q) => q.isCorrect).length;
+    const pct = Math.round((right / scored.length) * 100);
+    toast.success(`Bạn hoàn thành: ${pct}%`);
+    onComplete?.(pct, scored as Question[]);
   };
 
-  const checkAnswer = (question: Question, userAnswer: string): boolean => {
-    if (!userAnswer.trim()) return false;
-
-    switch (question.type) {
-      case "multiple-choice":
-      case "true-false":
-        return userAnswer === question.correctAnswer;
-
-      case "written":
-      case "fill-blank":
-        const normalizedUser = userAnswer.toLowerCase().trim();
-        const normalizedCorrect = question.correctAnswer.toLowerCase().trim();
-        // Allow some flexibility for written answers
-        return (
-          normalizedUser === normalizedCorrect ||
-          normalizedUser.includes(normalizedCorrect) ||
-          normalizedCorrect.includes(normalizedUser)
-        );
-
-      default:
-        return false;
-    }
+  // Định dạng thời gian
+  const fmtTime = (m: number) => {
+    const mm = Math.floor(m);
+    const ss = Math.floor((m - mm) * 60);
+    return `${mm}:${ss.toString().padStart(2, "0")}`;
   };
 
-  const formatTime = (minutes: number) => {
-    const mins = Math.floor(minutes);
-    const secs = Math.floor((minutes - mins) * 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  // ---------- Render ----------
 
-  const currentQ = questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
-
-  // Configuration Screen
-  if (!testStarted) {
+  // 1. Giao diện Cấu hình trước khi bắt đầu
+  if (!started) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="flex items-center gap-4 mb-8">
+      <div className="max-w-xl mx-auto p-6 space-y-6">
+        <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={onExit}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Test Configuration</h1>
-            <p className="text-muted-foreground">
-              Set up your test for {flashcardSet.title}
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold">Cấu hình bài test</h1>
         </div>
-
         <UICard>
           <CardHeader>
-            <CardTitle>Test Settings</CardTitle>
+            <CardTitle>Thiết lập</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <Label>Number of Questions</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min="1"
-                  max={flashcardSet.cards.length}
-                  value={config.questionCount}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      questionCount: Math.min(
-                        parseInt(e.target.value) || 1,
-                        flashcardSet.cards.length,
-                      ),
-                    })
-                  }
-                  className="w-20"
-                />
-                <span className="text-sm text-muted-foreground">
-                  Max: {flashcardSet.cards.length}
-                </span>
-              </div>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Số câu hỏi</Label>
+              <Input
+                type="number"
+                min={1}
+                max={flashcardSet.cards.length}
+                value={config.questionCount}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    questionCount: Math.min(
+                      parseInt(e.target.value) || 1,
+                      flashcardSet.cards.length,
+                    ),
+                  }))
+                }
+                className="w-20"
+              />
             </div>
-
-            <div className="space-y-3">
-              <Label>Question Types</Label>
-              <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Loại câu hỏi</Label>
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: "multiple-choice", label: "Multiple Choice" },
-                  { id: "true-false", label: "True/False" },
-                  { id: "written", label: "Written" },
-                  { id: "fill-blank", label: "Fill in Blank" },
-                ].map((type) => (
-                  <div key={type.id} className="flex items-center space-x-2">
+                  { id: "multiple-choice", txt: "Trắc nghiệm" },
+                  { id: "true-false", txt: "Đúng/Sai" },
+                  { id: "written", txt: "Tự luận" },
+                  { id: "fill-blank", txt: "Điền khuyết" },
+                ].map((opt) => (
+                  <label key={opt.id} className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      id={type.id}
-                      checked={config.questionTypes.includes(
-                        type.id as QuestionType,
-                      )}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setConfig({
-                            ...config,
-                            questionTypes: [
-                              ...config.questionTypes,
-                              type.id as QuestionType,
-                            ],
-                          });
-                        } else {
-                          setConfig({
-                            ...config,
-                            questionTypes: config.questionTypes.filter(
-                              (t) => t !== type.id,
-                            ),
-                          });
-                        }
-                      }}
+                      checked={config.questionTypes.includes(opt.id as any)}
+                      onChange={(e) =>
+                        setConfig((c) => ({
+                          ...c,
+                          questionTypes: e.target.checked
+                            ? [...c.questionTypes, opt.id as any]
+                            : c.questionTypes.filter((t) => t !== opt.id),
+                        }))
+                      }
                       className="rounded border-gray-300"
                     />
-                    <Label htmlFor={type.id} className="text-sm">
-                      {type.label}
-                    </Label>
-                  </div>
+                    <span>{opt.txt}</span>
+                  </label>
                 ))}
               </div>
             </div>
-
-            <div className="space-y-3">
-              <Label>Time Limit (Optional)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="No limit"
-                  value={config.timeLimit || ""}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      timeLimit: e.target.value
-                        ? parseInt(e.target.value)
-                        : undefined,
-                    })
-                  }
-                  className="w-32"
-                />
-                <span className="text-sm text-muted-foreground">minutes</span>
-              </div>
+            <div>
+              <Label>Thời gian (phút, tuỳ chọn)</Label>
+              <Input
+                type="number"
+                placeholder="Không giới hạn"
+                value={config.timeLimit ?? ""}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    timeLimit: e.target.value
+                      ? parseInt(e.target.value)
+                      : undefined,
+                  }))
+                }
+                className="w-24"
+              />
             </div>
-
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
-                id="randomize"
                 checked={config.randomize}
                 onChange={(e) =>
-                  setConfig({ ...config, randomize: e.target.checked })
+                  setConfig((c) => ({ ...c, randomize: e.target.checked }))
                 }
                 className="rounded border-gray-300"
               />
-              <Label htmlFor="randomize" className="text-sm">
-                Randomize question order
-              </Label>
+              <Label>Trộn ngẫu nhiên</Label>
             </div>
-
             <Button
-              onClick={startTest}
+              onClick={start}
               disabled={config.questionTypes.length === 0}
               className="w-full gradient-bg"
-              size="lg"
             >
-              Start Test
+              Bắt đầu
             </Button>
           </CardContent>
         </UICard>
@@ -378,211 +327,209 @@ export default function TestMode({
     );
   }
 
-  // Test Results Screen
-  if (testCompleted) {
-    const correctAnswers = questions.filter((q) => q.isCorrect).length;
-    const score = Math.round((correctAnswers / questions.length) * 100);
-
+  // 2. Khi test xong: màn tổng kết
+  if (completed) {
+    const right = questions.filter((q) => q.isCorrect).length;
+    const score = Math.round((right / questions.length) * 100);
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center mb-8">
-          <Trophy className="h-16 w-16 text-primary mx-auto mb-4" />
-          <h1 className="text-3xl font-bold mb-2">Test Complete!</h1>
-          <p className="text-muted-foreground">
-            You scored {score}% on {flashcardSet.title}
-          </p>
+      <div className="max-w-3xl mx-auto p-6 space-y-6">
+        <div className="text-center">
+          <Trophy className="mx-auto h-16 w-16 text-primary mb-4" />
+          <h2 className="text-3xl font-bold">Kết thúc bài test</h2>
+          <p className="text-lg">Điểm của bạn: {score}%</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <UICard>
-            <CardContent className="p-4 text-center">
+            <CardContent className="text-center">
               <div className="text-2xl font-bold">{score}%</div>
-              <div className="text-sm text-muted-foreground">Score</div>
+              <div>Điểm</div>
             </CardContent>
           </UICard>
           <UICard>
-            <CardContent className="p-4 text-center">
+            <CardContent className="text-center">
               <div className="text-2xl font-bold">
-                {correctAnswers}/{questions.length}
+                {right}/{questions.length}
               </div>
-              <div className="text-sm text-muted-foreground">Correct</div>
+              <div>Đúng</div>
             </CardContent>
           </UICard>
           <UICard>
-            <CardContent className="p-4 text-center">
+            <CardContent className="text-center">
               <div className="text-2xl font-bold">
-                {config.timeLimit
-                  ? formatTime(config.timeLimit - timeRemaining)
-                  : "N/A"}
+                {config.timeLimit ? fmtTime(config.timeLimit - timeLeft) : "—"}
               </div>
-              <div className="text-sm text-muted-foreground">Time</div>
+              <div>Thời gian</div>
             </CardContent>
           </UICard>
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-xl font-bold">Review Answers</h2>
-          {questions.map((question, index) => (
+          {questions.map((q, i) => (
             <UICard
-              key={question.id}
+              key={q.id}
               className={cn(
                 "border-l-4",
-                question.isCorrect
-                  ? "border-l-success"
-                  : "border-l-destructive",
+                q.isCorrect ? "border-l-success" : "border-l-destructive",
               )}
             >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  {question.isCorrect ? (
-                    <CheckCircle className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+              <CardContent className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {q.isCorrect ? (
+                    <CheckCircle className="text-success" />
                   ) : (
-                    <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                    <XCircle className="text-destructive" />
                   )}
-                  <div className="flex-1">
-                    <div className="font-medium mb-2">{question.question}</div>
-                    <div className="space-y-1 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">
-                          Your answer:{" "}
-                        </span>
-                        <span
-                          className={
-                            question.isCorrect
-                              ? "text-success"
-                              : "text-destructive"
-                          }
-                        >
-                          {question.userAnswer || "No answer"}
-                        </span>
-                      </div>
-                      {!question.isCorrect && (
-                        <div>
-                          <span className="text-muted-foreground">
-                            Correct answer:{" "}
-                          </span>
-                          <span className="text-success">
-                            {question.correctAnswer}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                  <span>
+                    {i + 1}. {q.question}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  <div>
+                    Đáp án bạn chọn:{" "}
+                    <strong
+                      className={
+                        q.isCorrect ? "text-success" : "text-destructive"
+                      }
+                    >
+                      {q.userAnswer || "Không có"}
+                    </strong>
                   </div>
+                  {!q.isCorrect && (
+                    <div>
+                      Đáp án đúng:{" "}
+                      <strong className="text-success">
+                        {q.correctAnswer}
+                      </strong>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </UICard>
           ))}
         </div>
 
-        <div className="flex items-center justify-center gap-4 mt-8">
+        <div className="flex justify-center gap-4">
           <Button variant="outline" onClick={() => window.location.reload()}>
             <RotateCcw className="h-4 w-4 mr-2" />
-            Retake Test
+            Test lại
           </Button>
-          <Button onClick={onExit}>Back to Tests</Button>
+          <Button onClick={onBackToList || onExit}>Quay về danh sách</Button>
         </div>
       </div>
     );
   }
 
-  // Test Taking Screen
+  // 3. Khi đang làm bài
+  const q = questions[current];
+  const prog = ((current + 1) / questions.length) * 100;
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-3xl mx-auto p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={onExit}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold">Test: {flashcardSet.title}</h1>
+            <h3 className="text-xl font-bold">{flashcardSet.title}</h3>
             <p className="text-sm text-muted-foreground">
-              Question {currentQuestion + 1} of {questions.length}
+              Câu {current + 1}/{questions.length}
             </p>
           </div>
         </div>
-
         <div className="flex items-center gap-4">
           {config.timeLimit && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              <span className="font-mono">{formatTime(timeRemaining)}</span>
+              <span className="font-mono">{fmtTime(timeLeft)}</span>
             </div>
           )}
-          <Badge variant="secondary">{Math.round(progress)}% Complete</Badge>
+          <Badge variant="secondary">{Math.round(prog)}%</Badge>
         </div>
       </div>
 
-      {/* Progress */}
-      <Progress value={progress} className="mb-8" />
+      {/* Thanh tiến độ */}
+      <Progress value={prog} />
 
-      {/* Question */}
-      {currentQ && (
-        <UICard className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg">{currentQ.question}</CardTitle>
-            <Badge variant="outline" className="w-fit">
-              {currentQ.type.replace("-", " ").toUpperCase()}
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {(currentQ.type === "multiple-choice" ||
-              currentQ.type === "true-false") && (
-              <RadioGroup
-                value={answers[currentQ.id] || ""}
-                onValueChange={(value) => handleAnswer(currentQ.id, value)}
-              >
-                {currentQ.options?.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <RadioGroupItem value={option} id={`option-${index}`} />
-                    <Label
-                      htmlFor={`option-${index}`}
-                      className="flex-1 cursor-pointer"
-                    >
-                      {option}
-                    </Label>
+      {/* Câu hỏi */}
+      <UICard>
+        <CardHeader>
+          <CardTitle className="text-lg">{q.question}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Trắc nghiệm / Đúng sai */}
+          {(q.type === "multiple-choice" || q.type === "true-false") && (
+            <RadioGroup
+              value={answers[q.id] || ""}
+              onValueChange={(v) => record(q.id, v)}
+            >
+              {q.options.map((opt, i) => {
+                // highlight từng option nếu người dùng đã chọn xong câu đó
+                const chosen = answers[q.id];
+                const isRight = opt === q.correctAnswer;
+                const isChosen = chosen === opt;
+                const cls =
+                  completed || chosen
+                    ? isChosen
+                      ? isRight
+                        ? "bg-success/20"
+                        : "bg-destructive/20"
+                      : isRight
+                        ? "bg-success/10"
+                        : ""
+                    : "";
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-center space-x-2 p-2 rounded",
+                      cls,
+                    )}
+                  >
+                    <RadioGroupItem value={opt} id={`opt-${i}`} />
+                    <Label htmlFor={`opt-${i}`}>{opt}</Label>
                   </div>
-                ))}
-              </RadioGroup>
-            )}
-
-            {(currentQ.type === "written" ||
-              currentQ.type === "fill-blank") && (
-              <Textarea
-                placeholder="Type your answer here..."
-                value={answers[currentQ.id] || ""}
-                onChange={(e) => handleAnswer(currentQ.id, e.target.value)}
-                className="resize-none"
-                rows={3}
-              />
-            )}
-          </CardContent>
-        </UICard>
-      )}
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={previousQuestion}
-          disabled={currentQuestion === 0}
-        >
-          Previous
-        </Button>
-
-        <div className="text-sm text-muted-foreground">
-          Use arrow keys to navigate
-        </div>
-
-        <Button
-          onClick={nextQuestion}
-          className={cn(
-            currentQuestion === questions.length - 1
-              ? "gradient-bg"
-              : "bg-primary hover:bg-primary/90",
+                );
+              })}
+            </RadioGroup>
           )}
-        >
-          {currentQuestion === questions.length - 1 ? "Finish Test" : "Next"}
+
+          {/* Viết và điền khuyết */}
+          {(q.type === "written" || q.type === "fill-blank") && (
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Nhập đáp án..."
+                value={answers[q.id] || ""}
+                onChange={(e) => record(q.id, e.target.value)}
+                rows={3}
+                readOnly={!!questions[current].userAnswer} // khoá sau khi trả lời
+                className={cn(
+                  questions[current].userAnswer
+                    ? questions[current].isCorrect
+                      ? "border-success/50 focus:border-success"
+                      : "border-destructive/50 focus:border-destructive"
+                    : "",
+                )}
+              />
+              {/* nếu đã trả lời và sai thì show đáp án đúng */}
+              {questions[current].userAnswer &&
+                !questions[current].isCorrect && (
+                  <div className="text-sm text-destructive">
+                    Đáp án đúng: <strong>{q.correctAnswer}</strong>
+                  </div>
+                )}
+            </div>
+          )}
+        </CardContent>
+      </UICard>
+      {/* Điều hướng */}
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={prev} disabled={current === 0}>
+          Trước
+        </Button>
+        <Button onClick={next}>
+          {current === questions.length - 1 ? "Kết thúc" : "Tiếp theo"}
         </Button>
       </div>
     </div>

@@ -76,53 +76,41 @@ export default function Create() {
     setCards(newCards.map((card, index) => ({ ...card, order: index })));
   };
 
-  const handleSave = () => {
-    if (!title.trim()) {
-      alert("Please enter a title for your study set");
-      return;
-    }
-
-    const validCards = cards.filter(
-      (card) => card.term.trim() && card.definition.trim(),
-    );
-
-    if (validCards.length === 0) {
-      alert("Please add at least one complete card");
-      return;
-    }
-
-    const flashcardSet: FlashcardSet = {
-      id: generateId(),
-      title: title.trim(),
-      description: description.trim(),
-      cards: validCards.map((card) => ({
-        id: card.id,
-        term: card.term.trim(),
-        definition: card.definition.trim(),
-        order: card.order,
-      })),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveSet(flashcardSet);
-    navigate("/");
+  const handleSave = async () => {
+    if (!title.trim()) return alert("Please enter a title");
+    const validCards = cards.filter((card) => card.term && card.definition);
+    if (!validCards.length) return alert("Need at least one card");
+  
+    const response = await fetch("/api/flashcard-sets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        description,
+        cards: validCards.map((c) => ({ term: c.term, definition: c.definition })),
+      }),
+    });
+  
+    if (response.ok) navigate("/");
+    else alert("Error saving flashcard set");
   };
+  
 
   const handleBulkImport = (
     importedCards: { term: string; definition: string }[],
   ) => {
+    const currentLength = cards.length;
+  
     const newCards: CardForm[] = importedCards.map((card, index) => ({
       id: generateId(),
       term: card.term,
       definition: card.definition,
-      order: index,
+      order: currentLength + index, // nối sau danh sách hiện tại
     }));
-
-    if (newCards.length > 0) {
-      setCards(newCards);
-    }
+  
+    setCards((prev) => [...prev, ...newCards]); // ✅ append thay vì replace
   };
+  
 
   const validCardsCount = cards.filter(
     (card) => card.term.trim() && card.definition.trim(),

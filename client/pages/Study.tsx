@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FlashcardSet } from "@/types/flashcard";
-import { getSets, getSet } from "@/lib/storage";
-import { BookOpen, Play, ArrowLeft, Users, Clock } from "lucide-react";
+import { BookOpen, Play, ArrowLeft, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Study() {
@@ -21,18 +20,26 @@ export default function Study() {
     loadData();
   }, [setId]);
 
-  const loadData = () => {
-    const allSets = getSets();
-    setSets(allSets);
+  const loadData = async () => {
+    try {
+      const res = await fetch("/api/me/flashcard-sets", {
+        credentials: "include"
+      });
+      const data = await res.json();
+      setSets(data);
 
-    if (setId) {
-      const set = getSet(setId);
-      if (set) {
-        setSelectedSet(set);
-        setStudyMode(true);
-      } else {
-        navigate("/study");
+      if (setId) {
+        const found = data.find((s: FlashcardSet) => s.id === setId);
+        if (found) {
+          setSelectedSet(found);
+          setStudyMode(true);
+        } else {
+          navigate("/study");
+        }
       }
+    } catch (err) {
+      console.error("Failed to fetch sets", err);
+      navigate("/study");
     }
   };
 

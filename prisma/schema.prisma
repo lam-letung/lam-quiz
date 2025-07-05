@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String         @id @default(cuid())
+  username  String         @unique
+  password  String
+  createdAt DateTime       @default(now())
+  sets      FlashCardSet[] @relation("UserToSet")
+}
+
+model FlashCardSet {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  userId      String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  cards       FlashCard[]
+  user        User        @relation("UserToSet", fields: [userId], references: [id])
+}
+
+model FlashCard {
+  id         String       @id @default(cuid())
+  term       String
+  definition String
+  order      Int
+  setId      String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  set        FlashCardSet @relation(fields: [setId], references: [id])
+}
