@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 @layer utilities {
+  html, body, #root {
+    height: 100%;
+  }
   /* Responsive utilities */
   .scrollbar-hide {
     -ms-overflow-style: none;
