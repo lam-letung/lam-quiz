@@ -47,6 +47,8 @@ export default function Index() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, []);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [sets, setSets] = useState<FlashcardSet[]>([]);
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +98,8 @@ export default function Index() {
 
   const handleCreateWorkplace = async () => {
     try {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
       const res = await fetch("/api/me/workplaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -107,6 +111,8 @@ export default function Index() {
       setNewWorkplace({ name: "", description: "", color: "#3b82f6" });
     } catch (err) {
       console.error("Create error", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -246,8 +252,8 @@ export default function Index() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleCreateWorkplace} className="flex-1">
-                    Tạo
+                  <Button onClick={handleCreateWorkplace} className="flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? "Đang tạo...": "Tạo"}
                   </Button>
                   <Button
                     variant="outline"
