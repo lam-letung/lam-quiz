@@ -20,8 +20,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Upload, FileText, Check, X, AlertCircle } from "lucide-react";
+import { Upload, FileText, Check, X, AlertCircle, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import * as XLSX from "xlsx";
 
 interface ParsedCard {
   term: string;
@@ -56,6 +57,7 @@ export default function BulkImportModal({
   const [delimiter, setDelimiter] = useState("comma");
   const [customDelimiter, setCustomDelimiter] = useState("");
   const [parsedCards, setParsedCards] = useState<ParsedCard[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const getDelimiterValue = () => {
     if (delimiter === "custom") return customDelimiter;
@@ -130,17 +132,78 @@ export default function BulkImportModal({
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const parseExcelFile = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          
+          // Get first worksheet
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Convert to array of arrays
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          // Convert to text format
+          const textData = jsonData
+            .filter((row: any) => row && row.length >= 2) // Skip empty rows or rows with less than 2 columns
+            .map((row: any) => {
+              const term = String(row[0] || "").trim();
+              const definition = String(row[1] || "").trim();
+              return `${term}\t${definition}`; // Use tab delimiter for Excel
+            })
+            .join("\n");
+          
+          resolve(textData);
+        } catch (error) {
+          reject(new Error("Failed to parse Excel file. Please ensure it has at least 2 columns."));
+        }
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setTextInput(text);
-      parseText(text, getDelimiterValue());
-    };
-    reader.readAsText(file);
+    setIsProcessing(true);
+    
+    try {
+      const fileName = file.name.toLowerCase();
+      
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Handle Excel files
+        const textData = await parseExcelFile(file);
+        setTextInput(textData);
+        setDelimiter("tab"); // Excel data uses tab delimiter
+        parseText(textData, "\t");
+      } else {
+        // Handle text files
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          setTextInput(text);
+          parseText(text, getDelimiterValue());
+        };
+        reader.readAsText(file);
+      }
+    } catch (error) {
+      console.error("File processing error:", error);
+      // Show error to user
+      setParsedCards([{
+        term: "Error",
+        definition: error instanceof Error ? error.message : "Unknown error occurred",
+        isValid: false,
+        error: "File processing failed"
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleImport = () => {
@@ -172,7 +235,7 @@ export default function BulkImportModal({
               Text Input
             </TabsTrigger>
             <TabsTrigger value="file" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
+              <FileSpreadsheet className="h-4 w-4" />
               File Upload
             </TabsTrigger>
           </TabsList>
@@ -189,6 +252,7 @@ export default function BulkImportModal({
                     value={textInput}
                     onChange={(e) => handleTextChange(e.target.value)}
                     className="h-48 resize-none font-mono text-sm"
+                    disabled={isProcessing}
                   />
                 </div>
 
@@ -197,6 +261,7 @@ export default function BulkImportModal({
                   <Select
                     value={delimiter}
                     onValueChange={handleDelimiterChange}
+                    disabled={isProcessing}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -219,6 +284,7 @@ export default function BulkImportModal({
                         handleCustomDelimiterChange(e.target.value)
                       }
                       className="font-mono"
+                      disabled={isProcessing}
                     />
                   )}
 
@@ -237,6 +303,11 @@ export default function BulkImportModal({
                 <div className="flex items-center justify-between">
                   <Label>Preview</Label>
                   <div className="flex items-center gap-2">
+                    {isProcessing && (
+                      <Badge variant="outline" className="gap-1">
+                        Processing...
+                      </Badge>
+                    )}
                     {validCount > 0 && (
                       <Badge variant="secondary" className="gap-1">
                         <Check className="h-3 w-3" />
@@ -255,7 +326,7 @@ export default function BulkImportModal({
                 <div className="border rounded-md h-48 overflow-auto">
                   {parsedCards.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
-                      Enter text above to see preview
+                      {isProcessing ? "Processing file..." : "Enter text above to see preview"}
                     </div>
                   ) : (
                     <div className="p-2 space-y-1">
@@ -321,33 +392,52 @@ export default function BulkImportModal({
               <CardContent className="space-y-4">
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
                   <div className="text-center">
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <Label
-                      htmlFor="file-upload"
-                      className="cursor-pointer text-sm font-medium"
-                    >
-                      Click to upload or drag and drop
-                    </Label>
-                    <Input
-                      id="file-upload"
-                      type="file"
-                      accept=".txt,.tsv,.csv"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      TXT, TSV, or CSV files
-                    </p>
+                    {isProcessing ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <p className="text-sm text-muted-foreground">Processing file...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <Label
+                          htmlFor="file-upload"
+                          className="cursor-pointer text-sm font-medium"
+                        >
+                          Click to upload or drag and drop
+                        </Label>
+                        <Input
+                          id="file-upload"
+                          type="file"
+                          accept=".txt,.tsv,.csv,.xlsx,.xls"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          TXT, TSV, CSV, XLSX, or XLS files
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="text-sm text-muted-foreground">
                   <p className="font-medium mb-2">Supported formats:</p>
                   <ul className="space-y-1 text-xs">
+                    <li>• Excel files (.xlsx, .xls) - First 2 columns will be used</li>
                     <li>• Tab-separated values (TSV)</li>
                     <li>• Comma-separated values (CSV)</li>
                     <li>• Plain text with delimiters</li>
                   </ul>
+                  <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                    <p className="text-xs font-medium text-blue-700">Excel Format Tips:</p>
+                    <ul className="text-xs text-blue-600 mt-1">
+                      <li>• Column A: Terms</li>
+                      <li>• Column B: Definitions</li>
+                      <li>• Header row is optional</li>
+                      <li>• Empty rows will be skipped</li>
+                    </ul>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -364,12 +454,16 @@ export default function BulkImportModal({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setOpen(false)}
+              disabled={isProcessing}
+            >
               Cancel
             </Button>
             <Button
               onClick={handleImport}
-              disabled={validCount === 0}
+              disabled={validCount === 0 || isProcessing}
               className="gradient-bg"
             >
               Import {validCount} Cards

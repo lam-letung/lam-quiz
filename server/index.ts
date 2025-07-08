@@ -63,23 +63,27 @@ app.delete("/api/flashcards/:id", async (req: Request, res: Response) => {
 
 
 // GET all flashcard sets with cards
-app.get("/api/flashcard-sets", async (_req: Request, res: Response) => {
-  try {
-    const sets = await prisma.flashCardSet.findMany({
-      orderBy: { updatedAt: "desc" },
-      include: {
-        cards: {
-          orderBy: { order: "asc" },
-        },
+app.post("/api/flashcard-sets", requireUser, async (req, res) => {
+  const { title, description, cards, workplaceId } = req.body;
+  const created = await prisma.flashCardSet.create({
+    data: {
+      title,
+      description,
+      userId: req.userId,
+      workplaceId: workplaceId || null,
+      cards: {
+        create: (cards || []).map((c, i) => ({
+          term: c.term,
+          definition: c.definition,
+          order: i,
+        })),
       },
-    });
-
-    res.json(sets);
-  } catch (err) {
-    console.error("Error fetching flashcard sets:", err);
-    res.status(500).json({ error: "Failed to fetch flashcard sets" });
-  }
+    },
+    include: { cards: true },
+  });
+  res.status(201).json(created);
 });
+
 
 
 app.post("/api/auth/register", async (req, res) => {
@@ -217,6 +221,92 @@ app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("remember");
   res.json({ message: "Logged out" });
 });
+
+app.get("/api/me/workplaces", requireUser, async (req, res) => {
+  const workplaces = await prisma.workplace.findMany({
+    where: { userId: req.userId },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(workplaces);
+});
+
+app.post("/api/me/workplaces", requireUser, async (req, res) => {
+  const { name, description, color } = req.body;
+  if (!name) return res.status(400).json({ error: "Tên là bắt buộc" });
+
+  const created = await prisma.workplace.create({
+    data: { name, description, color, userId: req.userId },
+  });
+  res.status(201).json(created);
+});
+
+app.put("/api/me/workplaces/:id", requireUser, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, color } = req.body;
+
+  const updated = await prisma.workplace.updateMany({
+    where: { id, userId: req.userId },
+    data: { name, description, color },
+  });
+
+  if (updated.count === 0) return res.status(404).json({ error: "Không tìm thấy workspace" });
+  res.json({ message: "Đã cập nhật workspace" });
+});
+
+// DELETE /api/me/workplaces/:id
+app.delete('/api/me/workplaces/:id', requireUser, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+
+  // Ensure ownership
+  const wp = await prisma.workplace.findUnique({ where: { id } });
+  if (!wp || wp.userId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  // Gỡ bỏ các study set khỏi workspace này
+  await prisma.flashCardSet.updateMany({
+    where: { workplaceId: id },
+    data: { workplaceId: null },
+  });
+
+  // Xoá workspace
+  await prisma.workplace.delete({ where: { id } });
+
+  res.json({ success: true });
+});
+
+
+// PUT /api/me/flashcard-sets/:id/workplace
+// body: { workplaceId: string | null }
+
+app.put('/api/me/flashcard-sets/:id/workplace', requireUser, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+  const { workplaceId } = req.body;
+
+  // Validate ownership
+  const set = await prisma.flashCardSet.findUnique({ where: { id } });
+  if (!set || set.userId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  // Optional: check if new workplace belongs to user
+  if (workplaceId) {
+    const wp = await prisma.workplace.findUnique({ where: { id: workplaceId } });
+    if (!wp || wp.userId !== userId) {
+      return res.status(400).json({ error: 'Invalid workspace' });
+    }
+  }
+
+  const updated = await prisma.flashCardSet.update({
+    where: { id },
+    data: { workplaceId: workplaceId || null },
+  });
+
+  return res.json(updated);
+});
+
 
 
   

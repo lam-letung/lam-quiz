@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { AnswerCard } from "./AnswerCard";
 
 interface TestModeProps {
   flashcardSet: FlashcardSet;
@@ -162,6 +163,11 @@ export default function TestMode({
   // Lưu đáp án
   const record = (qid: string, val: string) => {
     setAnswers((a) => ({ ...a, [qid]: val }));
+    setQuestions((qs) =>
+      qs.map((q) =>
+        q.id === qid ? { ...q, userAnswer: val, isCorrect: check(q, val) } : q,
+      ),
+    );
   };
 
   // Kiểm tra đáp án
@@ -460,39 +466,28 @@ export default function TestMode({
         <CardContent className="space-y-4">
           {/* Trắc nghiệm / Đúng sai */}
           {(q.type === "multiple-choice" || q.type === "true-false") && (
-            <RadioGroup
-              value={answers[q.id] || ""}
-              onValueChange={(v) => record(q.id, v)}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {q.options.map((opt, i) => {
-                // highlight từng option nếu người dùng đã chọn xong câu đó
                 const chosen = answers[q.id];
-                const isRight = opt === q.correctAnswer;
-                const isChosen = chosen === opt;
-                const cls =
-                  completed || chosen
-                    ? isChosen
-                      ? isRight
-                        ? "bg-success/20"
-                        : "bg-destructive/20"
-                      : isRight
-                        ? "bg-success/10"
-                        : ""
-                    : "";
+                const userAnswered = q.userAnswer !== undefined;
+
+                const isSelected = chosen === opt;
+                const isCorrect = userAnswered && opt === q.correctAnswer;
+                const isWrong = userAnswered && isSelected && !isCorrect;
+
                 return (
-                  <div
+                  <AnswerCard
                     key={i}
-                    className={cn(
-                      "flex items-center space-x-2 p-2 rounded",
-                      cls,
-                    )}
-                  >
-                    <RadioGroupItem value={opt} id={`opt-${i}`} />
-                    <Label htmlFor={`opt-${i}`}>{opt}</Label>
-                  </div>
+                    label={opt}
+                    selected={!userAnswered && isSelected}
+                    correct={opt === q.correctAnswer && userAnswered}
+                    wrong={isSelected && !isCorrect && userAnswered}
+                    disabled={userAnswered}
+                    onClick={() => record(q.id, opt)}
+                  />
                 );
               })}
-            </RadioGroup>
+            </div>
           )}
 
           {/* Viết và điền khuyết */}

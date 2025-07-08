@@ -1,13 +1,13 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/use-toast";
 import {
   Plus,
   Trash2,
@@ -15,12 +15,18 @@ import {
   Save,
   Upload,
   GripVertical,
-  Download,
 } from "lucide-react";
-import { FlashcardSet, Card as FlashCard } from "@/types/flashcard";
-import { generateId, saveSet } from "@/lib/storage";
+import { generateId } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import BulkImportModal from "@/components/create/BulkImportModal";
+import { Workplace } from "@/types/flashcard";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CardForm {
   id: string;
@@ -33,10 +39,42 @@ export default function Create() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // đọc giá trị workspace truyền từ modal
+  const location = useLocation();
+  const prefillWorkspaceId = (location.state as any)?.prefillWorkspaceId;
+  const [workplaceId, setWorkplaceId] = useState(prefillWorkspaceId || "");
+
   const [cards, setCards] = useState<CardForm[]>([
     { id: generateId(), term: "", definition: "", order: 0 },
     { id: generateId(), term: "", definition: "", order: 1 },
   ]);
+
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
+  useEffect(() => {
+    fetch("/api/me/workplaces")
+      .then((r) => r.json())
+      .then((data) => {
+        setWorkplaces(data);
+        if (
+          prefillWorkspaceId &&
+          data.some((w) => w.id === prefillWorkspaceId)
+        ) {
+          setWorkplaceId(prefillWorkspaceId);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    if (prefillWorkspaceId) {
+      // remove state from history
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, []);
+  
+  
+
+  // ✅ Fix Bug 1: Add loading state to prevent double submit
+  const [isSaving, setIsSaving] = useState(false);
 
   const addCard = () => {
     const newCard: CardForm = {
@@ -76,41 +114,110 @@ export default function Create() {
     setCards(newCards.map((card, index) => ({ ...card, order: index })));
   };
 
+  // ✅ Fix Bug 1: Prevent double submit with loading state
   const handleSave = async () => {
-    if (!title.trim()) return alert("Please enter a title");
-    const validCards = cards.filter((card) => card.term && card.definition);
-    if (!validCards.length) return alert("Need at least one card");
-  
-    const response = await fetch("/api/flashcard-sets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        description,
-        cards: validCards.map((c) => ({ term: c.term, definition: c.definition })),
-      }),
-    });
-  
-    if (response.ok) navigate("/");
-    else alert("Error saving flashcard set");
-  };
-  
+    if (isSaving) return; // Prevent double submit
 
+    if (!title.trim()) {
+      toast({
+        title: "Title Required",
+        description: "Please enter a title for your study set",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const validCards = cards.filter((card) => card.term && card.definition);
+    if (!validCards.length) {
+      toast({
+        title: "No Valid Cards",
+        description: "You need at least one card with both term and definition",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const res = await fetch("/api/flashcard-sets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          workplaceId: workplaceId || null,
+          cards: validCards.map((c) => ({
+            term: c.term,
+            definition: c.definition,
+          })),
+        }),
+      });
+      if (res.ok) {
+        // redirect về Index với workspaceId
+        navigate("/", {
+          state: { afterCreateWorkspace: workplaceId || "all" },
+        });
+      } else {
+        toast({
+          title: "Save Failed",
+          description: "Failed to save your flashcard set. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Network Error",
+        description:
+          "Unable to save flashcard set. Check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ✅ Fix Bug 2: Smart import logic - replace empty cards or append to existing
   const handleBulkImport = (
     importedCards: { term: string; definition: string }[],
   ) => {
-    const currentLength = cards.length;
-  
+    if (!importedCards.length) {
+      toast({
+        title: "No Cards Imported",
+        description: "No valid cards found to import",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if current cards are all empty
+    const hasValidCards = cards.some(
+      (card) => card.term.trim() || card.definition.trim(),
+    );
+
     const newCards: CardForm[] = importedCards.map((card, index) => ({
       id: generateId(),
       term: card.term,
       definition: card.definition,
-      order: currentLength + index, // nối sau danh sách hiện tại
+      order: hasValidCards ? cards.length + index : index, // Start from 0 if replacing
     }));
-  
-    setCards((prev) => [...prev, ...newCards]); // ✅ append thay vì replace
+
+    if (hasValidCards) {
+      // Append to existing cards
+      setCards((prev) => [...prev, ...newCards]);
+      toast({
+        title: "Cards Added",
+        description: `Successfully added ${importedCards.length} cards to your set`,
+      });
+    } else {
+      // Replace all empty cards
+      setCards(newCards);
+      toast({
+        title: "Cards Imported",
+        description: `Successfully imported ${importedCards.length} cards`,
+      });
+    }
   };
-  
 
   const validCardsCount = cards.filter(
     (card) => card.term.trim() && card.definition.trim(),
@@ -134,9 +241,14 @@ export default function Create() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{validCardsCount} cards</Badge>
-            <Button onClick={handleSave} className="gradient-bg gap-2">
+            {/* ✅ Fix Bug 1: Disable button when saving */}
+            <Button
+              onClick={handleSave}
+              className="gradient-bg gap-2"
+              disabled={isSaving}
+            >
               <Save className="h-4 w-4" />
-              Save Set
+              {isSaving ? "Saving..." : "Save Set"}
             </Button>
           </div>
         </div>
@@ -155,6 +267,7 @@ export default function Create() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="focus-ring"
+                disabled={isSaving}
               />
             </div>
             <div className="space-y-2">
@@ -166,7 +279,29 @@ export default function Create() {
                 onChange={(e) => setDescription(e.target.value)}
                 className="focus-ring resize-none"
                 rows={3}
+                disabled={isSaving}
               />
+            </div>
+            <div>
+              <Label>Workspace</Label>
+              <Select
+                value={workplaceId ?? "none"}
+                onValueChange={(val) => {
+                  setWorkplaceId(val === "none" ? null : val);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Không gán workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không gán</SelectItem>
+                  {workplaces.map((wp) => (
+                    <SelectItem key={wp.id} value={wp.id}>
+                      {wp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -182,7 +317,7 @@ export default function Create() {
           <CardContent>
             <div className="flex items-center gap-4">
               <BulkImportModal onImport={handleBulkImport}>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" disabled={isSaving}>
                   <Upload className="h-4 w-4" />
                   Import Cards
                 </Button>
@@ -203,6 +338,7 @@ export default function Create() {
               variant="outline"
               size="sm"
               className="gap-2"
+              disabled={isSaving}
             >
               <Plus className="h-4 w-4" />
               Add Card
@@ -241,6 +377,7 @@ export default function Create() {
                         }
                         className="focus-ring resize-none"
                         rows={3}
+                        disabled={isSaving}
                       />
                     </div>
                     <div className="space-y-2">
@@ -253,6 +390,7 @@ export default function Create() {
                         }
                         className="focus-ring resize-none"
                         rows={3}
+                        disabled={isSaving}
                       />
                     </div>
                   </div>
@@ -263,7 +401,7 @@ export default function Create() {
                       variant="ghost"
                       size="icon"
                       onClick={() => removeCard(card.id)}
-                      disabled={cards.length <= 1}
+                      disabled={cards.length <= 1 || isSaving}
                       className="h-8 w-8 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -281,6 +419,7 @@ export default function Create() {
                 onClick={addCard}
                 variant="ghost"
                 className="w-full h-20 border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5"
+                disabled={isSaving}
               >
                 <div className="text-center">
                   <Plus className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
@@ -299,12 +438,20 @@ export default function Create() {
             {validCardsCount} valid cards • Auto-saved as you type
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/")}>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/")}
+              disabled={isSaving}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave} className="gradient-bg gap-2">
+            <Button
+              onClick={handleSave}
+              className="gradient-bg gap-2"
+              disabled={isSaving}
+            >
               <Save className="h-4 w-4" />
-              Create Set
+              {isSaving ? "Creating..." : "Create Set"}
             </Button>
           </div>
         </div>

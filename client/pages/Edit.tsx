@@ -17,7 +17,7 @@ import { EditSetForm } from "@/components/edit/EditSetForm";
 import { CardEditor } from "@/components/edit/CardEditor";
 import { AddCardForm } from "@/components/edit/AddCardForm";
 import { DeleteConfirmation } from "@/components/edit/DeleteConfirmation";
-import { FlashcardSet, Card as FlashCard } from "@/types/flashcard";
+import { FlashcardSet, Card as FlashCard, Workplace } from "@/types/flashcard";
 import { getSet, saveSet } from "@/lib/storage";
 import { fetchSetById, updateSet } from "@/lib/api";
 import BulkImportModal from "@/components/create/BulkImportModal";
@@ -38,6 +38,7 @@ const EditPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<{
     [key: string]: string;
   }>({});
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
 
   useEffect(() => {
     if (!setId) {
@@ -49,6 +50,12 @@ const EditPage: React.FC = () => {
 
     loadSet();
   }, [setId]);
+
+  useEffect(() => {
+    fetch("/api/me/workplaces")
+      .then((res) => res.json())
+      .then((data) => setWorkplaces(data));
+  }, []);
 
   useEffect(() => {
     // Warn user about unsaved changes when leaving page
@@ -486,6 +493,39 @@ const EditPage: React.FC = () => {
                 <p className="text-sm text-muted-foreground mt-2">
                   Paste or upload text to import multiple cards
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Workplace</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="workplace-select"
+                    className="text-sm font-medium block"
+                  >
+                    Assign to a Workplace
+                  </label>
+                  <select
+                    id="workplace-select"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    value={editedSet.workplaceId ?? ""}
+                    onChange={(e) =>
+                      updateEditedSet({
+                        workplaceId: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">-- No workplace --</option>
+                    {workplaces.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </CardContent>
             </Card>
 

@@ -1,4 +1,4 @@
-export interface Card {
+ export interface Card {
   id: string;
   term: string;
   definition: string;
@@ -6,7 +6,17 @@ export interface Card {
   mastered?: boolean;
 }
 
+export interface Workplace {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FlashcardSet {
+  workplaceId: string;
   id: string;
   title: string;
   description: string;
