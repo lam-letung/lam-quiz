@@ -88,6 +88,8 @@ export default function Index() {
   const handleDeleteSet = async (id: string) => {
     if (window.confirm("Xoá study set?")) {
       try {
+        console.log("id",id);
+        
         await fetch(`/api/me/flashcard-sets/${id}`, { method: "DELETE" });
         setSets(sets.filter((s) => s.id !== id));
       } catch (err) {
@@ -202,67 +204,77 @@ export default function Index() {
         </div>
 
         {/* Modal */}
-{isCreateWorkplaceOpen && (
-  <div className="fixed inset-0 z-50 top-[-8rem] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-lg w-full max-w-md mx-4">
-      <div className="flex justify-between mb-4">
-        <h2 className="text-xl font-bold text-foreground">Tạo Workspace Mới</h2>
-        <Button variant="ghost" onClick={() => setIsCreateWorkplaceOpen(false)}>
-          <X className="h-4 w-4 text-foreground" />
-        </Button>
-      </div>
+        {isCreateWorkplaceOpen && (
+          <div className="fixed inset-0 z-50 top-[-8rem] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg w-full max-w-md mx-4">
+              <div className="flex justify-between mb-4">
+                <h2 className="text-xl font-bold text-foreground">
+                  Tạo Workspace Mới
+                </h2>
+                <Button
+                  variant="ghost"
+                  onClick={() => setIsCreateWorkplaceOpen(false)}
+                >
+                  <X className="h-4 w-4 text-foreground" />
+                </Button>
+              </div>
 
-      <div className="space-y-4">
-        <Input
-          placeholder="Tên Workspace"
-          value={newWorkplace.name}
-          onChange={(e) =>
-            setNewWorkplace({ ...newWorkplace, name: e.target.value })
-          }
-        />
-        <textarea
-          placeholder="Mô tả"
-          rows={3}
-          value={newWorkplace.description}
-          onChange={(e) =>
-            setNewWorkplace({ ...newWorkplace, description: e.target.value })
-          }
-          className="w-full border rounded-md px-3 py-2 bg-background text-foreground dark:border-gray-700"
-        />
-        <div className="flex gap-2">
-          {["#3b82f6", "#10b981", "#f59e0b", "#ef4444"].map((color) => (
-            <button
-              key={color}
-              className={cn(
-                "w-6 h-6 rounded-full border-2",
-                newWorkplace.color === color
-                  ? "border-gray-800 scale-110"
-                  : "border-gray-300",
-              )}
-              style={{ backgroundColor: color }}
-              onClick={() =>
-                setNewWorkplace({ ...newWorkplace, color })
-              }
-            />
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleCreateWorkplace}
-            className="flex-1"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Đang tạo..." : "Tạo"}
-          </Button>
-          <Button variant="outline" onClick={() => setIsCreateWorkplaceOpen(false)}>
-            Huỷ
-          </Button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
+              <div className="space-y-4">
+                <Input
+                  placeholder="Tên Workspace"
+                  value={newWorkplace.name}
+                  onChange={(e) =>
+                    setNewWorkplace({ ...newWorkplace, name: e.target.value })
+                  }
+                />
+                <textarea
+                  placeholder="Mô tả"
+                  rows={3}
+                  value={newWorkplace.description}
+                  onChange={(e) =>
+                    setNewWorkplace({
+                      ...newWorkplace,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded-md px-3 py-2 bg-background text-foreground dark:border-gray-700"
+                />
+                <div className="flex gap-2">
+                  {["#3b82f6", "#10b981", "#f59e0b", "#ef4444"].map((color) => (
+                    <button
+                      key={color}
+                      className={cn(
+                        "w-6 h-6 rounded-full border-2",
+                        newWorkplace.color === color
+                          ? "border-gray-800 scale-110"
+                          : "border-gray-300",
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() =>
+                        setNewWorkplace({ ...newWorkplace, color })
+                      }
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleCreateWorkplace}
+                    className="flex-1"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Đang tạo..." : "Tạo"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateWorkplaceOpen(false)}
+                  >
+                    Huỷ
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dashboard Stats */}
         <DashboardStats />

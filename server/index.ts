@@ -164,6 +164,9 @@ app.put("/api/flashcard-sets/:id", requireUser, async (req, res) => {
   res.json(updated);
 });
 
+
+
+
 app.get("/api/flashcard-sets/:id", requireUser, async (req, res) => {
   const { id } = req.params;
   const set = await prisma.flashCardSet.findUnique({
@@ -307,8 +310,47 @@ app.put('/api/me/flashcard-sets/:id/workplace', requireUser, async (req, res) =>
   return res.json(updated);
 });
 
-
-
+app.delete('/api/me/flashcard-sets/:id', requireUser, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Sử dụng transaction để đảm bảo atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Kiểm tra quyền sở hữu
+      const set = await tx.flashCardSet.findUnique({ 
+        where: { id },
+        select: { userId: true }
+      });
+      
+      if (!set || set.userId !== req.userId) {
+        throw new Error('Unauthorized');
+      }
+      
+      // Xóa các flashcard thuộc set này
+      await tx.flashCard.deleteMany({
+        where: { setId: id },
+      });
+      
+      // Xóa flashcard set
+      await tx.flashCardSet.delete({
+        where: { id },
+      });
+      
+      return { success: true };
+    });
+    
+    res.status(200).json({ message: 'Study set deleted successfully' });
+    
+  } catch (error) {
+    console.error('Delete error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
   
   return app;
 }
