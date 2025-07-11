@@ -29,6 +29,7 @@ interface TestModeProps {
   flashcardSet: FlashcardSet;
   onExit?: () => void;
   onBackToList?: () => void;
+  onComplete?: (score: number, questions: Question[]) => void;
 }
 
 interface TestConfig {
@@ -42,6 +43,7 @@ export default function TestMode({
   flashcardSet,
   onExit,
   onBackToList,
+  onComplete
 }: TestModeProps) {
   const [config, setConfig] = useState<TestConfig>({
     questionCount: Math.min(10, flashcardSet.cards.length),
@@ -207,6 +209,8 @@ export default function TestMode({
 
   // Kết thúc và hiện màn tổng kết
   const finish = () => {
+    console.log("ok");
+    
     // đánh dấu tất cả
     const scored = questions.map((q) => ({
       ...q,

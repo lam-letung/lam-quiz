@@ -64,7 +64,7 @@ app.delete("/api/flashcards/:id", async (req: Request, res: Response) => {
 
 // GET all flashcard sets with cards
 app.post("/api/flashcard-sets", requireUser, async (req, res) => {
-  const { title, description, cards, workplaceId } = req.body;
+  const { title, description, cards, workplaceId, termLanguage , definitionLanguage} = req.body;
   const created = await prisma.flashCardSet.create({
     data: {
       title,
@@ -78,6 +78,8 @@ app.post("/api/flashcard-sets", requireUser, async (req, res) => {
           order: i,
         })),
       },
+      termLanguage,
+      definitionLanguage
     },
     include: { cards: true },
   });
@@ -122,7 +124,7 @@ function requireUser(req, res, next) {
 app.get("/api/me/flashcard-sets", requireUser, async (req, res) => {
   const sets = await prisma.flashCardSet.findMany({
     where: { userId: req.userId },
-    include: { cards: true },
+    include: { cards: true},
     orderBy: { createdAt: "desc" },
   });
   if(!sets){
@@ -133,7 +135,7 @@ app.get("/api/me/flashcard-sets", requireUser, async (req, res) => {
 
 app.put("/api/flashcard-sets/:id", requireUser, async (req, res) => {
   const { id } = req.params;
-  const { title, description, cards } = req.body;
+  const { title, description, cards, termLanguage, definitionLanguage, workplaceId } = req.body;
 
   if (!title || !Array.isArray(cards)) return res.status(400).json({ error: "Invalid input" });
 
@@ -155,8 +157,11 @@ app.put("/api/flashcard-sets/:id", requireUser, async (req, res) => {
           term: card.term,
           definition: card.definition,
           order: index,
-        })),
+        }))
       },
+      termLanguage,
+      definitionLanguage,
+      workplaceId
     },
     include: { cards: true },
   });
@@ -164,10 +169,27 @@ app.put("/api/flashcard-sets/:id", requireUser, async (req, res) => {
   res.json(updated);
 });
 
-
-
-
 app.get("/api/flashcard-sets/:id", requireUser, async (req, res) => {
+  
+  const { id } = req.params;
+  const set = await prisma.flashCardSet.findUnique({
+    where: {
+      id,
+      userId: req.userId,
+    },
+    include: {
+      cards: {
+        orderBy: { order: "asc" },
+      },
+    },
+  });
+
+  if (!set) return res.status(404).json({ error: "Not found" });
+  res.json(set);
+});
+
+app.get("/api/me/flashcard-sets/:id", requireUser, async (req, res) => {
+  
   const { id } = req.params;
   const set = await prisma.flashCardSet.findUnique({
     where: {
@@ -187,20 +209,23 @@ app.get("/api/flashcard-sets/:id", requireUser, async (req, res) => {
 
 
 app.post("/api/flashcard-sets", requireUser, async (req, res) => {
-  const { title, description, cards } = req.body;
+  const { title, description, cards,termLanguage , definitionLanguage } = req.body;
   // …
   const created = await prisma.flashCardSet.create({
     data: {
       title,
       description,
-      userId: req.userId,         // ⬅️ Bắt buộc
+      userId: req.userId, 
+      termLanguage,
+      definitionLanguage,       
       cards: {
         create: cards.map((c, i) => ({
           term: c.term,
           definition: c.definition,
           order: i,
         })),
-      },
+      }
+ 
     },
     include: { cards: true },
   });

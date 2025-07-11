@@ -49,6 +49,11 @@ export default function Create() {
     { id: generateId(), term: "", definition: "", order: 1 },
   ]);
 
+  const [termLang, setTermLang] = useState("en");
+  const [defLang, setDefLang] = useState("vi");
+
+  
+
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
   useEffect(() => {
     fetch("/api/me/workplaces")
@@ -70,8 +75,6 @@ export default function Create() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, []);
-  
-  
 
   // ✅ Fix Bug 1: Add loading state to prevent double submit
   const [isSaving, setIsSaving] = useState(false);
@@ -151,6 +154,8 @@ export default function Create() {
             term: c.term,
             definition: c.definition,
           })),
+          termLanguage: termLang,
+          definitionLanguage: defLang,
         }),
       });
       if (res.ok) {
@@ -302,6 +307,34 @@ export default function Create() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Term Language</Label>
+                <Select value={termLang} onValueChange={setTermLang}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="vi">Tiếng Việt</SelectItem>
+                    <SelectItem value="ja">日本語</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Definition Language</Label>
+                <Select value={defLang} onValueChange={setDefLang}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="vi">Tiếng Việt</SelectItem>
+                    <SelectItem value="ja">日本語</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>

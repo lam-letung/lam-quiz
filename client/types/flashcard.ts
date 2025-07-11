@@ -4,6 +4,7 @@
   definition: string;
   order: number;
   mastered?: boolean;
+
 }
 
 export interface Workplace {
@@ -24,6 +25,8 @@ export interface FlashcardSet {
   createdAt: string;
   updatedAt: string;
   studyProgress?: StudyProgress;
+  termLanguage:string
+  definitionLanguage:string
 }
 
 export interface StudyProgress {

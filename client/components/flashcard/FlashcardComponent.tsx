@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Volume2, RotateCcw, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+
 interface FlashcardComponentProps {
   card: FlashCard;
   onMastered?: (cardId: string, mastered: boolean) => void;
   showControls?: boolean;
   autoFlip?: boolean;
   className?: string;
+  termLanguage?:String
+  definitionLanguage?:String
 }
 
 export default function FlashcardComponent({
@@ -19,9 +22,29 @@ export default function FlashcardComponent({
   showControls = true,
   autoFlip = false,
   className,
+  termLanguage,
+  definitionLanguage
 }: FlashcardComponentProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+
+
+  
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const allVoices = speechSynthesis.getVoices();
+      setVoices(allVoices);
+    };
+  
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  
+    loadVoices();
+  }, []);
 
   // Fix: Reset flip state when card changes
   useEffect(() => {
@@ -42,13 +65,36 @@ export default function FlashcardComponent({
     onMastered?.(card.id, mastered);
   };
 
-  const speakText = (text: string) => {
+  const speakText = (text: string,lang: string = 'en-US') => {
     if ("speechSynthesis" in window) {
+      
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.8;
-      speechSynthesis.speak(utterance);
+      const selectedVoice = voices.find((v) => v.lang === lang);
+      if (selectedVoice) {
+          
+            utterance.voice = selectedVoice;
+            utterance.lang = lang;
+          } else {
+            utterance.lang = lang; // fallback
+          }
+          utterance.rate = 0.9;
+          speechSynthesis.speak(utterance);
     }
   };
+  
+
+  // const speakText = (text: string, lang: string = 'en-US') => {
+  //   const utterance = new SpeechSynthesisUtterance(text);
+  //   const selectedVoice = voices.find((v) => v.lang === lang);
+  //   if (selectedVoice) {
+  //     utterance.voice = selectedVoice;
+  //     utterance.lang = lang;
+  //   } else {
+  //     utterance.lang = lang; // fallback
+  //   }
+  //   utterance.rate = 0.9;
+  //   speechSynthesis.speak(utterance);
+  // };
 
   return (
     <div
@@ -87,7 +133,7 @@ export default function FlashcardComponent({
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation();
-                  speakText(card.term);
+                  speakText(card.term, `${termLanguage}`);
                 }}
                 className="h-8 w-8 opacity-60 hover:opacity-100"
               >
@@ -132,7 +178,7 @@ export default function FlashcardComponent({
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation();
-                  speakText(card.definition);
+                  speakText(card.definition, `${definitionLanguage}`);
                 }}
                 className="h-8 w-8 opacity-60 hover:opacity-100"
               >

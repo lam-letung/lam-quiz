@@ -86,7 +86,6 @@ export class SearchEngine {
 
   // Index Building
   public buildIndex(): void {
-    console.log("Building search index...");
     this.index = [];
 
     const folders = getFolders();
@@ -163,7 +162,6 @@ export class SearchEngine {
     });
 
     this.saveIndex();
-    console.log(`Index built with ${this.index.length} items`);
   }
 
   // Search functionality

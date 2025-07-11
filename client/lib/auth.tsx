@@ -29,14 +29,12 @@ const AuthContextInternal = createContext<AuthContextType>({
         if(user){
           setUserId(user.id);
           setUserName(user.username)
-          console.log("checlok");
           
         }
 
         const res = await axios.get("/api/me", { withCredentials: true });
         if(res?.data){
           setUserId(res?.data?.userId);
-          console.log("data",res?.data?.userName);
           
           setUserName(res.data.userName)
           

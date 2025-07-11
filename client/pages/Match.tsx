@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { FlashcardSet } from "@/types/flashcard";
 import { ArrowLeft, Play, Target, Timer, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import LoadingComponent from "@/components/layout/Loading";
 
 export default function Match() {
   const { setId } = useParams();
@@ -62,7 +63,6 @@ export default function Match() {
   };
 
   const handleGameComplete = (score: number, time: number) => {
-    console.log("Game completed with score:", score, "time:", time);
     setGameMode(false);
     setSelectedSet(null);
     navigate("/match");
@@ -77,9 +77,7 @@ export default function Match() {
   if (authLoading || isLoading) {
     return (
       <AppLayout>
-        <div className="container mx-auto p-6">
-          <p>Loading…</p>
-        </div>
+        <LoadingComponent message="Loading match" />
       </AppLayout>
     );
   }

@@ -341,6 +341,8 @@ export default function StudyMode({
       <div className="flex items-center justify-center mb-8">
         <FlashcardComponent
           card={currentCard}
+          termLanguage={flashcardSet.termLanguage}
+          definitionLanguage={flashcardSet.definitionLanguage}
           onMastered={handleMastered}
           className="w-full max-w-lg"
         />

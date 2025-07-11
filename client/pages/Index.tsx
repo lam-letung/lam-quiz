@@ -88,7 +88,6 @@ export default function Index() {
   const handleDeleteSet = async (id: string) => {
     if (window.confirm("Xoá study set?")) {
       try {
-        console.log("id",id);
         
         await fetch(`/api/me/flashcard-sets/${id}`, { method: "DELETE" });
         setSets(sets.filter((s) => s.id !== id));

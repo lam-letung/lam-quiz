@@ -21,6 +21,14 @@ import { FlashcardSet, Card as FlashCard, Workplace } from "@/types/flashcard";
 import { getSet, saveSet } from "@/lib/storage";
 import { fetchSetById, updateSet } from "@/lib/api";
 import BulkImportModal from "@/components/create/BulkImportModal";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const EditPage: React.FC = () => {
   const params = useParams();
@@ -39,11 +47,10 @@ const EditPage: React.FC = () => {
     [key: string]: string;
   }>({});
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
-
+  const [termLang, setTermLang] = useState("en");
+  const [defLang, setDefLang] = useState("vi");
   useEffect(() => {
     if (!setId) {
-      console.log("ok1");
-
       navigate("/");
       return;
     }
@@ -103,7 +110,7 @@ const EditPage: React.FC = () => {
 
   const detectChanges = (newSet: FlashcardSet) => {
     if (!originalSet) return false;
-    const significantFields = ["title", "description", "cards"];
+    const significantFields = ["title", "description", "cards", "termLanguage", "definitionLanguage", "workplaceId"];
     for (const field of significantFields) {
       if (
         JSON.stringify(originalSet[field]) !== JSON.stringify(newSet[field])
@@ -171,6 +178,8 @@ const EditPage: React.FC = () => {
     try {
       const setToSave = {
         ...editedSet,
+        termLang: editedSet.termLanguage || "en",
+        defLang: editedSet.definitionLanguage || "vi",
         updatedAt: new Date().toISOString(),
       };
       await updateSet(setId!, setToSave);
@@ -247,7 +256,6 @@ const EditPage: React.FC = () => {
       );
       if (!confirmLeave) return;
     }
-    console.log("ok4");
     navigate(-1);
   };
 
@@ -270,7 +278,6 @@ const EditPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-2">Study Set Not Found</h2>
           <Button
             onClick={() => {
-              console.log("ok1");
               navigate("/");
             }}
             variant="outline"
@@ -525,6 +532,44 @@ const EditPage: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Term Language</Label>
+                    <Select
+                      value={editedSet.termLanguage}
+                      onValueChange={(val) =>
+                        updateEditedSet({ termLanguage: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="vi">Tiếng Việt</SelectItem>
+                        <SelectItem value="ja">日本語</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Definition Language</Label>
+                    <Select
+                     value={editedSet.definitionLanguage}
+                      onValueChange={(val) =>
+                        updateEditedSet({ definitionLanguage: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="vi">Tiếng Việt</SelectItem>
+                        <SelectItem value="ja">日本語</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>

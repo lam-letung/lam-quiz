@@ -90,7 +90,6 @@ const BookmarksPage: React.FC = () => {
       // Cleanup orphaned bookmarks
       const removed = cleanupOrphanedBookmarks();
       if (removed > 0) {
-        console.log(`Cleaned up ${removed} orphaned bookmarks`);
       }
     } catch (error) {
       console.error("Error loading bookmarks:", error);

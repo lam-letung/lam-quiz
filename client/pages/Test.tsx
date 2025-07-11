@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { FlashcardSet, Question } from "@/types/flashcard";
 import { ArrowLeft, PenTool, Clock, Trophy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import LoadingComponent from "@/components/layout/Loading";
 
 export default function TestPage() {
   const { setId } = useParams();
@@ -17,6 +18,7 @@ export default function TestPage() {
   const [selected, setSelected] = useState<FlashcardSet | null>(null);
   const [loading, setLoading] = useState(true);
   const [inTest, setInTest] = useState(false);
+
 
   useEffect(() => {
     if (!authLoading) {
@@ -51,7 +53,7 @@ export default function TestPage() {
   if (authLoading || loading) {
     return (
       <AppLayout>
-        <div className="container mx-auto p-6">Đang tải…</div>
+        <LoadingComponent  message="Loading test"/>
       </AppLayout>
     );
   }
@@ -61,12 +63,11 @@ export default function TestPage() {
       <AppLayout showSidebar={false}>
         <TestMode
           flashcardSet={selected}
-          onComplete={(score, results: Question[]) => {
-            console.log("Kết quả:", score, results);
-            setInTest(false);
-            setSelected(null);
-            navigate("/test");
-          }}
+          // onComplete={(score, results: Question[]) => {
+          //   setInTest(false);
+          //   setSelected(null);
+          //   navigate("/test");
+          // }}
           onExit={() => {
             setInTest(false);
             setSelected(null);
