@@ -1,15 +1,21 @@
 [build]
   command = "prisma generate && npm run build:client"
   functions = "netlify/functions"
-  publish = "dist/spa"
-
+  publish = "dist/spa"  # 👈 Đảm bảo đúng thư mục chứa index.html của FE (Vite build)
 
 [functions]
   external_node_modules = ["express"]
   node_bundler = "esbuild"
-  
+
+# API routing tới Netlify Functions (Express backend)
 [[redirects]]
-  force = true
   from = "/api/*"
-  status = 200
   to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# SPA fallback: bắt mọi request không khớp file static và trả về index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
