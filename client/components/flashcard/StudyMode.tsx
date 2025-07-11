@@ -31,6 +31,8 @@ import {
 } from "@/lib/progressStorage";
 import { generateId } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Input } from "../ui/input";
 
 interface StudyModeProps {
   flashcardSet: FlashcardSet;
@@ -53,6 +55,7 @@ export default function StudyMode({
   const [autoAdvanceTimer, setAutoAdvanceTimer] =
     useState<NodeJS.Timeout | null>(null);
   const [studyStreak, setStudyStreak] = useState(0);
+  const [speedSpeech, setSpeedSpeech] = useState<string>('1')
 
   // Scoring system state
   const [studySession, setStudySession] = useState<StudySession | null>(null);
@@ -317,6 +320,21 @@ export default function StudyMode({
         </div>
 
         <div className="flex items-center gap-2">
+        <Select  value={speedSpeech} onValueChange={setSpeedSpeech}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent >
+            <SelectItem value={'0.25'}>0.25</SelectItem>
+              <SelectItem value={'0.5'}>0.5</SelectItem>
+              <SelectItem value={'0.6'}>0.6</SelectItem>
+              <SelectItem value={'0.7'}>0.7</SelectItem>
+              <SelectItem value={'0.8'}>0.8</SelectItem>
+              <SelectItem value={'0.9'}>0.9</SelectItem>
+              <SelectItem  value={'1'}>1</SelectItem>
+              <SelectItem value={'1.5'}>1.5</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant={autoAdvance ? "default" : "outline"}
             size="sm"
@@ -343,8 +361,10 @@ export default function StudyMode({
           card={currentCard}
           termLanguage={flashcardSet.termLanguage}
           definitionLanguage={flashcardSet.definitionLanguage}
+          speedSpeech={speedSpeech}
           onMastered={handleMastered}
           className="w-full max-w-lg"
+          
         />
       </div>
 

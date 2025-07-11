@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Volume2, RotateCcw, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+import { LoadingSkeleton } from "../ui/loading-skeleton";
+import LoadingComponent from "../layout/Loading";
 
 interface FlashcardComponentProps {
   card: FlashCard;
@@ -12,8 +13,9 @@ interface FlashcardComponentProps {
   showControls?: boolean;
   autoFlip?: boolean;
   className?: string;
-  termLanguage?:String
-  definitionLanguage?:String
+  termLanguage?: String;
+  definitionLanguage?: String;
+  speedSpeech?: string;
 }
 
 export default function FlashcardComponent({
@@ -23,26 +25,24 @@ export default function FlashcardComponent({
   autoFlip = false,
   className,
   termLanguage,
-  definitionLanguage
+  definitionLanguage,
+  speedSpeech,
 }: FlashcardComponentProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-
-
-  
+  const [isSpeak, setIspeak] = useState(false);
 
   useEffect(() => {
     const loadVoices = () => {
       const allVoices = speechSynthesis.getVoices();
       setVoices(allVoices);
     };
-  
+
     if (speechSynthesis.onvoiceschanged !== undefined) {
       speechSynthesis.onvoiceschanged = loadVoices;
     }
-  
+
     loadVoices();
   }, []);
 
@@ -65,23 +65,21 @@ export default function FlashcardComponent({
     onMastered?.(card.id, mastered);
   };
 
-  const speakText = (text: string,lang: string = 'en-US') => {
+  const speakText = (text: string, lang: string = "en-US") => {
     if ("speechSynthesis" in window) {
-      
       const utterance = new SpeechSynthesisUtterance(text);
       const selectedVoice = voices.find((v) => v.lang === lang);
       if (selectedVoice) {
-          
-            utterance.voice = selectedVoice;
-            utterance.lang = lang;
-          } else {
-            utterance.lang = lang; // fallback
-          }
-          utterance.rate = 0.9;
-          speechSynthesis.speak(utterance);
+        utterance.voice = selectedVoice;
+        utterance.lang = lang;
+      } else {
+        utterance.lang = lang; // fallback
+      }
+      setIspeak(false);
+      utterance.rate = Number(speedSpeech);
+      speechSynthesis.speak(utterance);
     }
   };
-  
 
   // const speakText = (text: string, lang: string = 'en-US') => {
   //   const utterance = new SpeechSynthesisUtterance(text);
@@ -132,12 +130,21 @@ export default function FlashcardComponent({
                 variant="ghost"
                 size="icon"
                 onClick={(e) => {
+                  setIspeak(true);
                   e.stopPropagation();
                   speakText(card.term, `${termLanguage}`);
                 }}
                 className="h-8 w-8 opacity-60 hover:opacity-100"
               >
-                <Volume2 className="h-4 w-4" />
+                {isSpeak ? (
+                  <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    </div>
+                  </div>
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <div className="flex-1 flex items-center justify-center">
@@ -177,6 +184,7 @@ export default function FlashcardComponent({
                 variant="ghost"
                 size="icon"
                 onClick={(e) => {
+                  setIspeak(true);
                   e.stopPropagation();
                   speakText(card.definition, `${definitionLanguage}`);
                 }}

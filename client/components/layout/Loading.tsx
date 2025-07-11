@@ -1,5 +1,6 @@
 interface IProps {
     message?: string;
+    
   }
 
 const LoadingComponent = ({

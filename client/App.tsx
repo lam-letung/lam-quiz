@@ -20,6 +20,7 @@ import { AuthProvider } from "./lib/auth";
 import RegisterPage from "./pages/Register";
 import LoginPage from "./pages/Login";
 import WorkspacesPage from "./pages/WorkspacesPage";
+import GamePages from "./pages/Games";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/workspaces" element={<WorkspacesPage />} />
+            <Route path="/games" element={<GamePages />} />
 
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
